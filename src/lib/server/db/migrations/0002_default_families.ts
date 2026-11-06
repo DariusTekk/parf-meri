@@ -17,8 +17,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
   let order = 0;
   for (const [name, slug] of FAMILIES) {
     order += 10;
-    await sql`INSERT OR IGNORE INTO fragrance_families (name, slug, sort_order, is_demo)
-      VALUES (${name}, ${slug}, ${order}, 0)`.execute(db);
+    await sql`INSERT INTO fragrance_families (name, slug, sort_order, is_demo)
+      VALUES (${name}, ${slug}, ${order}, 0) ON CONFLICT (slug) DO NOTHING`.execute(db);
   }
 }
 

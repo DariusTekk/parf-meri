@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { hash, verify } from '@node-rs/argon2';
-import { getDb, getSqlite } from './db';
+import { sql } from 'kysely';
+import { getDb } from './db';
 import { nowIso } from '@/lib/shared/format';
 
 /** OWASP Parola Saklama önerisi: argon2id, m=19 MiB, t=2, p=1. */
@@ -137,39 +138,59 @@ async function recordEvent(
 }
 
 /**
- * Kilit denetimi ve "hatalı" olarak ön kayıt tek bir eşzamanlı SQLite işleminde yapılır; araya
- * başka istek giremediği için paralel denemeler sınırı aşamaz. Kilitliyse null döner.
+ * Kilit denetimi ve "hatalı" olarak ön kayıt tek bir işlemde, e-postaya özgü danışma kilidi
+ * (pg_advisory_xact_lock) altında yapılır; aynı e-postaya paralel denemeler sırayla değerlendirilir
+ * ve sınırı aşamaz. Kilitliyse null döner.
  */
-function reserveLoginAttempt(
+async function reserveLoginAttempt(
   emailKey: string,
   emailIpKey: string,
   windowStart: string,
   now: Date,
-): number[] | null {
-  const sqlite = getSqlite();
-  const lastSuccess = sqlite.prepare(
-    "SELECT MAX(created_at) AS t FROM rate_events WHERE kind = 'login_email' AND key = ? AND success = 1",
-  );
-  const failures = sqlite.prepare(
-    'SELECT COUNT(*) AS n FROM rate_events WHERE kind = ? AND key = ? AND success = 0 AND created_at >= ?',
-  );
-  const insert = sqlite.prepare(
-    'INSERT INTO rate_events (kind, key, success, created_at) VALUES (?, ?, 0, ?)',
-  );
-  return sqlite
-    .transaction(() => {
-      const last = (lastSuccess.get(emailKey) as { t: string | null }).t;
-      const since = last && last > windowStart ? last : windowStart;
-      const byIp = (failures.get('login', emailIpKey, since) as { n: number }).n;
-      const byEmail = (failures.get('login_email', emailKey, since) as { n: number }).n;
-      if (byIp >= LOGIN_MAX_FAILURES || byEmail >= LOGIN_EMAIL_MAX_FAILURES) return null;
+): Promise<number[] | null> {
+  return getDb()
+    .transaction()
+    .execute(async (trx) => {
+      await sql`SELECT pg_advisory_xact_lock(hashtext(${emailKey}))`.execute(trx);
+      const last = await trx
+        .selectFrom('rate_events')
+        .select((eb) => eb.fn.max('created_at').as('t'))
+        .where('kind', '=', 'login_email')
+        .where('key', '=', emailKey)
+        .where('success', '=', 1)
+        .executeTakeFirst();
+      const lastAt = last?.t ?? null;
+      const since = lastAt && lastAt > windowStart ? lastAt : windowStart;
+      const count = async (kind: string, key: string) =>
+        Number(
+          (
+            await trx
+              .selectFrom('rate_events')
+              .select((eb) => eb.fn.countAll<string>().as('n'))
+              .where('kind', '=', kind)
+              .where('key', '=', key)
+              .where('success', '=', 0)
+              .where('created_at', '>=', since)
+              .executeTakeFirstOrThrow()
+          ).n,
+        );
+      if (
+        (await count('login', emailIpKey)) >= LOGIN_MAX_FAILURES ||
+        (await count('login_email', emailKey)) >= LOGIN_EMAIL_MAX_FAILURES
+      ) {
+        return null;
+      }
       const iso = now.toISOString();
-      return [
-        Number(insert.run('login', emailIpKey, iso).lastInsertRowid),
-        Number(insert.run('login_email', emailKey, iso).lastInsertRowid),
-      ];
-    })
-    .immediate();
+      const rows = await trx
+        .insertInto('rate_events')
+        .values([
+          { kind: 'login', key: emailIpKey, success: 0, created_at: iso },
+          { kind: 'login_email', key: emailKey, success: 0, created_at: iso },
+        ])
+        .returning('id')
+        .execute();
+      return rows.map((r) => r.id);
+    });
 }
 
 /**
@@ -199,7 +220,7 @@ export async function attemptLogin(
   }
   await recordEvent('login_ip', ipKey, false, now);
 
-  const pendingIds = reserveLoginAttempt(emailKey, emailIpKey, windowStart, now);
+  const pendingIds = await reserveLoginAttempt(emailKey, emailIpKey, windowStart, now);
   if (!pendingIds) return { ok: false, reason: 'locked' };
 
   const admin = await db

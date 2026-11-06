@@ -1,5 +1,5 @@
 import { type Migration, type MigrationResultSet, Migrator } from 'kysely/migration';
-import { getDb } from './index';
+import { getMigrationDb } from './index';
 import * as m0001 from './migrations/0001_initial';
 import * as m0002 from './migrations/0002_default_families';
 
@@ -10,7 +10,7 @@ const migrations: Record<string, Migration> = {
 
 export function getMigrator(): Migrator {
   return new Migrator({
-    db: getDb(),
+    db: getMigrationDb(),
     provider: { getMigrations: async () => migrations },
   });
 }

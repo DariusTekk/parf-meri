@@ -6,17 +6,37 @@ function resolveFromCwd(value: string | undefined, fallback: string[]): string {
   return path.join(/*turbopackIgnore: true*/ process.cwd(), ...fallback);
 }
 
+function siteUrlFromEnv(): string {
+  const explicit = process.env.SITE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, '');
+  // Vercel'de SITE_URL verilmemişse projenin üretim alan adı kullanılır.
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  if (vercelHost) return `https://${vercelHost}`;
+  return 'http://localhost:3000';
+}
+
 export function getEnv() {
-  const siteUrl = (process.env.SITE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
   const cookieSecureRaw = process.env.COOKIE_SECURE?.trim();
+  const trustProxyRaw = process.env.TRUST_PROXY?.trim();
+  const onVercel = process.env.VERCEL === '1';
   return {
-    databasePath: resolveFromCwd(process.env.DATABASE_PATH, ['data', 'app.sqlite']),
+    /** Uzak PostgreSQL bağlantısı (Vercel'de Neon entegrasyonu tanımlar). Yoksa yerel PGlite kullanılır. */
+    databaseUrl: process.env.DATABASE_URL?.trim() || null,
+    /** Migrasyonlar için havuzsuz (doğrudan) bağlantı; yoksa DATABASE_URL. */
+    migrationDatabaseUrl:
+      process.env.DATABASE_URL_UNPOOLED?.trim() || process.env.DATABASE_URL?.trim() || null,
+    /** Yerel geliştirme ve testlerde süreç içi PostgreSQL'in (PGlite) veri klasörü. */
+    localDbDir: resolveFromCwd(process.env.LOCAL_DB_DIR, ['data', 'pglite']),
+    /** Görseller: Blob anahtarı varsa Vercel Blob, yoksa yerel disk. */
+    blobToken: process.env.BLOB_READ_WRITE_TOKEN?.trim() || null,
     uploadDir: resolveFromCwd(process.env.UPLOAD_DIR, ['storage', 'uploads']),
-    siteUrl,
+    siteUrl: siteUrlFromEnv(),
     isProduction: process.env.NODE_ENV === 'production',
+    onVercel,
     cookieSecure: cookieSecureRaw
       ? cookieSecureRaw === 'true'
       : process.env.NODE_ENV === 'production',
-    trustProxy: process.env.TRUST_PROXY === 'true',
+    // Vercel'in kenar sunucusu X-Forwarded-For başlığını kendisi yazar; orada vekile güvenilir.
+    trustProxy: trustProxyRaw ? trustProxyRaw === 'true' : onVercel,
   };
 }

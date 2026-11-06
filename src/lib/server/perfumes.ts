@@ -23,9 +23,12 @@ export type { ImageInfo, PerfumeCard };
 type DB = Database;
 type PerfumeQB = SelectQueryBuilder<DB, 'perfumes' | 'brands', object>;
 
-function parseCover(json: string | null): ImageInfo | null {
-  if (!json) return null;
-  const raw = JSON.parse(json) as { id: string; alt: string; w: number; h: number; ws: string };
+type CoverJson = { id: string; alt: string; w: number; h: number; ws: string };
+
+/** PostgreSQL sürücüleri jsonb'yi nesne olarak döndürür; metin gelirse ayrıştırılır. */
+function parseCover(value: CoverJson | string | null): ImageInfo | null {
+  if (!value) return null;
+  const raw = typeof value === 'string' ? (JSON.parse(value) as CoverJson) : value;
   return { id: raw.id, alt: raw.alt, width: raw.w, height: raw.h, widths: parseWidths(raw.ws) };
 }
 
@@ -36,8 +39,8 @@ export function parseWidths(value: string): number[] {
     .filter((v) => Number.isInteger(v) && v > 0);
 }
 
-const coverSubquery = sql<string | null>`(
-  SELECT json_object('id', pi.id, 'alt', pi.alt_text, 'w', pi.width, 'h', pi.height, 'ws', pi.widths)
+const coverSubquery = sql<CoverJson | null>`(
+  SELECT jsonb_build_object('id', pi.id, 'alt', pi.alt_text, 'w', pi.width, 'h', pi.height, 'ws', pi.widths)
   FROM perfume_images pi WHERE pi.perfume_id = perfumes.id
   ORDER BY pi.is_cover DESC, pi.sort_order ASC LIMIT 1
 )`;
@@ -65,7 +68,7 @@ type CardRow = {
   min_price_kurus: number | null;
   brand_name: string;
   brand_slug: string;
-  cover_json: string | null;
+  cover_json: CoverJson | null;
 };
 
 function toCard(row: CardRow): PerfumeCard {
