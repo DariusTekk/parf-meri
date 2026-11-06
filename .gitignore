@@ -1,0 +1,40 @@
+# Bağımlılıklar ve derleme çıktıları
+node_modules/
+.next/
+out/
+build/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+next-env.d.ts
+
+# Ortam ve sırlar
+.env
+.env.*
+!.env.example
+
+# Veritabanı, yüklenen dosyalar ve yedekler
+data/
+storage/
+backups/
+.e2e/
+anlik-goruntuler/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# Çalışma notları ve kanıtlar (depoya girmez)
+calisma-notlari.md
+calisma-notlari-parca-*.md
+ekran-goruntuleri/
+lighthouse-raporlari/
+
+# Yerel editör yapılandırması
+.vscode/
+
+# Sistem
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,13 @@
+.next
+node_modules
+coverage
+playwright-report
+test-results
+backups
+data
+storage
+.e2e
+package-lock.json
+calisma-notlari*.md
+ekran-goruntuleri
+lighthouse-raporlari

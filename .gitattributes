@@ -1,0 +1,9 @@
+# Metin dosyaları depoda LF ile saklanır; Windows ve Linux CI aynı içeriği görür.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.webp binary
+*.avif binary
+*.woff2 binary
+*.sqlite binary
