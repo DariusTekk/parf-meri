@@ -26,7 +26,8 @@ export const variantSchema = z.object({
     .number()
     .int()
     .min(0, 'Fiyat negatif olamaz.')
-    .max(100_000_000_00, 'Fiyat çok yüksek.')
+    // PostgreSQL integer sınırı (2^31) içinde kalır: en fazla 20.000.000,00 TL.
+    .max(2_000_000_000, 'Fiyat çok yüksek.')
     .nullable(),
 });
 

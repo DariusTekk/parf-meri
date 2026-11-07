@@ -1,8 +1,7 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import sharp from 'sharp';
 import { getDb } from './db';
-import { addImage, uploadRoot } from './images';
+import { addImage } from './images';
+import { getImageStorage } from './storage';
 import { savePerfume, setStatusBulk } from './perfumes';
 import { uniqueSlug } from './taxonomy';
 import { nowIso } from '@/lib/shared/format';
@@ -482,8 +481,7 @@ export async function clearDemo() {
       .where('perfume_id', 'in', ids)
       .execute();
     await db.deleteFrom('perfumes').where('id', 'in', ids).execute();
-    for (const img of images)
-      await fs.rm(path.join(uploadRoot(), img.id), { recursive: true, force: true });
+    for (const img of images) await getImageStorage().remove(img.id);
   }
   // Gerçek kayıtların kullandığı demo marka, aile ve notalar silinmez; gerçek kayda dönüştürülür.
   await db

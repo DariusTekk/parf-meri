@@ -3,7 +3,7 @@ import { type Kysely, sql } from 'kysely';
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
     .createTable('admins')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('email', 'text', (c) => c.notNull().unique())
     .addColumn('password_hash', 'text', (c) => c.notNull())
     .addColumn('created_at', 'text', (c) => c.notNull())
@@ -12,7 +12,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('sessions')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('admin_id', 'integer', (c) =>
       c.notNull().references('admins.id').onDelete('cascade'),
     )
@@ -25,7 +25,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('rate_events')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('key', 'text', (c) => c.notNull())
     .addColumn('kind', 'text', (c) => c.notNull())
     .addColumn('success', 'integer', (c) => c.notNull().defaultTo(0))
@@ -39,7 +39,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('brands')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('name', 'text', (c) => c.notNull())
     .addColumn('slug', 'text', (c) => c.notNull().unique())
     .addColumn('description', 'text')
@@ -50,7 +50,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('fragrance_families')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('name', 'text', (c) => c.notNull())
     .addColumn('slug', 'text', (c) => c.notNull().unique())
     .addColumn('sort_order', 'integer', (c) => c.notNull().defaultTo(0))
@@ -59,7 +59,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('notes')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('name', 'text', (c) => c.notNull())
     .addColumn('slug', 'text', (c) => c.notNull().unique())
     .addColumn('is_demo', 'integer', (c) => c.notNull().defaultTo(0))
@@ -67,7 +67,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('perfumes')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('brand_id', 'integer', (c) => c.notNull().references('brands.id'))
     .addColumn('family_id', 'integer', (c) =>
       c.references('fragrance_families.id').onDelete('set null'),
@@ -119,7 +119,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('perfume_variants')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('perfume_id', 'integer', (c) =>
       c.notNull().references('perfumes.id').onDelete('cascade'),
     )
@@ -152,13 +152,22 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .on('perfume_images')
     .columns(['perfume_id', 'sort_order'])
     .execute();
+  // Parfüm başına en fazla 8 görsel; eşzamanlı yüklemelerde de veritabanı düzeyinde korunur.
+  await sql`
+    CREATE FUNCTION perfume_images_limit_fn() RETURNS trigger AS $$
+    BEGIN
+      PERFORM pg_advisory_xact_lock(NEW.perfume_id);
+      IF (SELECT COUNT(*) FROM perfume_images WHERE perfume_id = NEW.perfume_id) >= 8 THEN
+        RAISE EXCEPTION 'image_limit';
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `.execute(db);
   await sql`
     CREATE TRIGGER perfume_images_limit
     BEFORE INSERT ON perfume_images
-    WHEN (SELECT COUNT(*) FROM perfume_images WHERE perfume_id = NEW.perfume_id) >= 8
-    BEGIN
-      SELECT RAISE(ABORT, 'image_limit');
-    END
+    FOR EACH ROW EXECUTE FUNCTION perfume_images_limit_fn()
   `.execute(db);
 
   await db.schema
@@ -170,7 +179,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('contact_messages')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('name', 'text', (c) => c.notNull())
     .addColumn('contact', 'text', (c) => c.notNull())
     .addColumn('message', 'text', (c) => c.notNull())
@@ -186,7 +195,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
   await db.schema
     .createTable('audit_log')
-    .addColumn('id', 'integer', (c) => c.primaryKey().autoIncrement())
+    .addColumn('id', 'serial', (c) => c.primaryKey())
     .addColumn('admin_id', 'integer', (c) => c.references('admins.id').onDelete('set null'))
     .addColumn('action', 'text', (c) => c.notNull())
     .addColumn('entity', 'text', (c) => c.notNull())
@@ -202,7 +211,8 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 }
 
 export async function down(db: Kysely<unknown>): Promise<void> {
-  await sql`DROP TRIGGER IF EXISTS perfume_images_limit`.execute(db);
+  await sql`DROP TRIGGER IF EXISTS perfume_images_limit ON perfume_images`.execute(db);
+  await sql`DROP FUNCTION IF EXISTS perfume_images_limit_fn()`.execute(db);
   for (const table of [
     'audit_log',
     'contact_messages',

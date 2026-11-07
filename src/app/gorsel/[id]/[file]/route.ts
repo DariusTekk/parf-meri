@@ -1,7 +1,11 @@
-import fs from 'node:fs/promises';
 import type { NextRequest } from 'next/server';
 import { validateSessionToken } from '@/lib/server/auth';
-import { IMAGE_FILE_PATTERN, imageAccess, imageFilePath } from '@/lib/server/images';
+import {
+  IMAGE_FILE_PATTERN,
+  IMAGE_ID_PATTERN,
+  imageAccess,
+  readImageFile,
+} from '@/lib/server/images';
 import { sessionCookieName } from '@/lib/server/request';
 
 export const dynamic = 'force-dynamic';
@@ -23,9 +27,8 @@ export async function GET(
   ctx: { params: Promise<{ id: string; file: string }> },
 ) {
   const { id, file } = await ctx.params;
-  const full = imageFilePath(id, file);
   const match = IMAGE_FILE_PATTERN.exec(file);
-  if (!full || !match) return notFound();
+  if (!IMAGE_ID_PATTERN.test(id) || !match) return notFound();
 
   const { access, widths } = await imageAccess(id);
   if (access === 'missing' || !widths.includes(Number(match[1]))) return notFound();
@@ -34,12 +37,8 @@ export async function GET(
     if (!admin) return notFound();
   }
 
-  let body: Buffer;
-  try {
-    body = await fs.readFile(full);
-  } catch {
-    return notFound();
-  }
+  const body = await readImageFile(id, file);
+  if (!body) return notFound();
   return new Response(new Uint8Array(body), {
     status: 200,
     headers: {

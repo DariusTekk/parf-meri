@@ -4,17 +4,20 @@ Sürümler 6 Kasım 2026'da npm kayıt defterinden doğrulandı; lisanslar kurul
 
 ## Çalışma zamanı
 
-| Paket            | Sürüm  | Lisans                                       | Gerekçe                                                     |
-| ---------------- | ------ | -------------------------------------------- | ----------------------------------------------------------- |
-| next             | 16.4.5 | MIT                                          | Uygulama çatısı: vitrin, panel ve API tek uygulamada        |
-| react, react-dom | 19.3.1 | MIT                                          | Arayüz                                                      |
-| kysely           | 0.29.8 | MIT                                          | Tip güvenli, parametrik sorgular; yukarı/aşağı migrasyon    |
-| better-sqlite3   | 13.0.3 | MIT                                          | SQLite sürücüsü; hazır ikili, sunucu gerektirmez            |
-| sharp            | 0.35.5 | Apache-2.0 (libvips LGPL-3.0, dinamik bağlı) | Görsel doğrulama, boyutlandırma, WebP/AVIF, meta veri silme |
-| @node-rs/argon2  | 2.2.2  | MIT                                          | argon2id parola özeti                                       |
-| zod              | 4.6.7  | MIT                                          | Sunucu ve istemcide aynı doğrulama şemaları                 |
-| markdown-it      | 15.0.3 | MIT                                          | Açıklama biçimlendirme; ham HTML kapalı                     |
-| lucide-react     | 1.70.0 | ISC                                          | İkonlar; yalnızca kullanılanlar pakete girer                |
+| Paket                 | Sürüm  | Lisans                                       | Gerekçe                                                                |
+| --------------------- | ------ | -------------------------------------------- | ---------------------------------------------------------------------- |
+| next                  | 16.4.5 | MIT                                          | Uygulama çatısı: vitrin, panel ve API tek uygulamada                   |
+| react, react-dom      | 19.3.1 | MIT                                          | Arayüz                                                                 |
+| kysely                | 0.29.8 | MIT                                          | Tip güvenli, parametrik sorgular; yukarı/aşağı migrasyon               |
+| pg                    | 8.23.1 | MIT                                          | PostgreSQL sürücüsü (Vercel'de Neon)                                   |
+| @electric-sql/pglite  | 0.5.15 | Apache-2.0                                   | Yerel geliştirme ve testlerde süreç içi PostgreSQL; sunucu gerektirmez |
+| kysely-pglite-dialect | 1.4.0  | MIT                                          | Kysely ile PGlite bağlantısı                                           |
+| @vercel/blob          | 2.8.2  | Apache-2.0                                   | Görsellerin private Blob deposunda saklanması                          |
+| sharp                 | 0.35.5 | Apache-2.0 (libvips LGPL-3.0, dinamik bağlı) | Görsel doğrulama, boyutlandırma, WebP/AVIF, meta veri silme            |
+| @node-rs/argon2       | 2.2.2  | MIT                                          | argon2id parola özeti                                                  |
+| zod                   | 4.6.7  | MIT                                          | Sunucu ve istemcide aynı doğrulama şemaları                            |
+| markdown-it           | 15.0.3 | MIT                                          | Açıklama biçimlendirme; ham HTML kapalı                                |
+| lucide-react          | 1.70.0 | ISC                                          | İkonlar; yalnızca kullanılanlar pakete girer                           |
 
 ## Geliştirme
 

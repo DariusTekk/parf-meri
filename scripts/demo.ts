@@ -1,12 +1,12 @@
 import { closeDb } from '../src/lib/server/db';
 import { migrateToLatest } from '../src/lib/server/db/migrate';
 import { clearDemo, loadDemo } from '../src/lib/server/demo';
-import { getEnv } from '../src/lib/server/env';
+import { describeDatabase } from '../src/lib/server/env';
 
 const command = process.argv[2];
 
 async function main() {
-  console.log(`Veritabanı: ${getEnv().databasePath}`);
+  console.log(`Veritabanı: ${describeDatabase()}`);
   await migrateToLatest();
   if (command === 'load') {
     const c = await loadDemo();

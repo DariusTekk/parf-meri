@@ -14,8 +14,11 @@ import { getEnv } from '../src/lib/server/env';
  */
 async function main() {
   const env = getEnv();
-  const dir = path.dirname(env.databasePath);
-  if (!dir.includes('.e2e'))
+  // Uzak veritabanı tanımlıysa hiçbir şey silinmez; yalnızca .e2e altındaki yerel PGlite kullanılır.
+  if (env.databaseUrl)
+    throw new Error('DATABASE_URL tanımlıyken uçtan uca hazırlık çalıştırılamaz.');
+  const dir = path.dirname(env.localDbDir);
+  if (path.basename(dir) !== '.e2e')
     throw new Error('Bu betik yalnızca .e2e klasöründeki test veritabanında çalışır.');
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });

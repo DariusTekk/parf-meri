@@ -27,7 +27,7 @@ jobs:
       - name: Migrasyon yukarı, aşağı, yukarı
         run: npm run migrate:check
         env:
-          DATABASE_PATH: ${{ runner.temp }}/migrate-check.sqlite
+          LOCAL_DB_DIR: ${{ runner.temp }}/migrate-check-db
       - run: npm run test:coverage
       - run: npm run build
       - run: npx playwright install --with-deps chromium

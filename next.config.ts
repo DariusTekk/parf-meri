@@ -18,7 +18,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
-  serverExternalPackages: ['better-sqlite3', 'sharp', '@node-rs/argon2'],
+  serverExternalPackages: ['@electric-sql/pglite', 'pg', 'sharp', '@node-rs/argon2'],
   async headers() {
     return [
       { source: '/:path*', headers: securityHeaders },

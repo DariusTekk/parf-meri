@@ -1,42 +1,46 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import SQLite from 'better-sqlite3';
-import { Kysely, SqliteDialect } from 'kysely';
+import { PGlite } from '@electric-sql/pglite';
+import { Kysely, PostgresDialect, type Dialect } from 'kysely';
+import { PGliteDialect } from 'kysely-pglite-dialect';
+import { Pool } from 'pg';
 import { getEnv } from '../env';
 import type { Database } from './types';
 
-type DbHolder = { db: Kysely<Database>; sqlite: SQLite.Database; path: string; queries: number };
+type DbHolder = { db: Kysely<Database>; key: string; queries: number };
 
 const globalForDb = globalThis as unknown as { __parfumDb?: DbHolder };
 
-function open(dbPath: string): DbHolder {
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const sqlite = new SQLite(dbPath);
-  sqlite.pragma('journal_mode = WAL');
-  sqlite.pragma('foreign_keys = ON');
-  sqlite.pragma('busy_timeout = 5000');
-  sqlite.pragma('synchronous = NORMAL');
-  const holder: DbHolder = {
-    sqlite,
-    path: dbPath,
-    queries: 0,
-    db: undefined as unknown as Kysely<Database>,
-  };
+function createDialect(key: string, connectionString: string | null): Dialect {
+  if (connectionString) {
+    return new PostgresDialect({
+      pool: new Pool({ connectionString, max: 5, idleTimeoutMillis: 10_000 }),
+    });
+  }
+  // Yerel geliştirme ve testler: sunucu kurmadan, diskte kalıcı, süreç içi PostgreSQL.
+  fs.mkdirSync(key, { recursive: true });
+  return new PGliteDialect(new PGlite(key));
+}
+
+function open(key: string, connectionString: string | null): DbHolder {
+  const holder: DbHolder = { key, queries: 0, db: undefined as unknown as Kysely<Database> };
   holder.db = new Kysely<Database>({
-    dialect: new SqliteDialect({ database: sqlite }),
+    dialect: createDialect(key, connectionString),
     log: (event) => {
       if (event.level === 'query') holder.queries += 1;
+      if (event.level === 'error') console.error('Veritabanı sorgusu başarısız oldu.');
     },
   });
   return holder;
 }
 
-function holder(): DbHolder {
-  const dbPath = getEnv().databasePath;
+function holder(forMigration = false): DbHolder {
+  const env = getEnv();
+  const url = forMigration ? env.migrationDatabaseUrl : env.databaseUrl;
+  const key = url ?? env.localDbDir;
   const current = globalForDb.__parfumDb;
-  if (current && current.path === dbPath) return current;
-  if (current) current.sqlite.close();
-  globalForDb.__parfumDb = open(dbPath);
+  if (current && current.key === key) return current;
+  if (current) void current.db.destroy();
+  globalForDb.__parfumDb = open(key, url);
   return globalForDb.__parfumDb;
 }
 
@@ -44,8 +48,9 @@ export function getDb(): Kysely<Database> {
   return holder().db;
 }
 
-export function getSqlite(): SQLite.Database {
-  return holder().sqlite;
+/** Migrasyonlar havuzsuz bağlantıyla çalışır (Neon'da DATABASE_URL_UNPOOLED). */
+export function getMigrationDb(): Kysely<Database> {
+  return holder(true).db;
 }
 
 /** Test ve ölçüm için: şimdiye kadar çalıştırılan sorgu sayısı. */
@@ -53,10 +58,14 @@ export function queryCount(): number {
   return holder().queries;
 }
 
+export function isLocalDatabase(): boolean {
+  return getEnv().databaseUrl === null;
+}
+
 export async function closeDb(): Promise<void> {
   const current = globalForDb.__parfumDb;
   if (current) {
-    await current.db.destroy();
     globalForDb.__parfumDb = undefined;
+    await current.db.destroy();
   }
 }

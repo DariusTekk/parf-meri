@@ -5,12 +5,12 @@ import {
   migrateToLatest,
   migrationNames,
 } from '../src/lib/server/db/migrate';
-import { getEnv } from '../src/lib/server/env';
+import { describeDatabase } from '../src/lib/server/env';
 
 const command = process.argv[2] ?? 'latest';
 
 async function main() {
-  console.log(`Veritabanı: ${getEnv().databasePath}`);
+  console.log(`Veritabanı: ${describeDatabase()}`);
   if (command === 'latest') {
     const r = await migrateToLatest();
     const applied = r.results?.map((m) => m.migrationName) ?? [];

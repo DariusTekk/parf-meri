@@ -2,12 +2,13 @@
 
 Parfüm kataloğu ve yönetim paneli. Ziyaretçiler giriş yapmadan yayındaki parfümleri görür, arar, süzer, favorilere ekler ve WhatsApp ya da iletişim formuyla soru sorar. Site sahibi `/admin` altındaki panelden parfüm, görsel, marka, koku ailesi, nota ve site ayarlarını yönetir.
 
-Teknoloji: Next.js 16 (App Router), React 19, TypeScript, SQLite (better-sqlite3 + Kysely), sharp. Ayrıntılı gerekçe: [docs/plan.md](docs/plan.md). Bağımlılıklar ve lisanslar: [docs/bagimliliklar.md](docs/bagimliliklar.md).
+Teknoloji: Next.js 16 (App Router), React 19, TypeScript, PostgreSQL (Kysely; yerelde süreç içi PGlite, Vercel'de Neon), görseller için Vercel Blob ya da yerel disk, sharp. Ayrıntılı gerekçe: [docs/plan.md](docs/plan.md). Bağımlılıklar ve lisanslar: [docs/bagimliliklar.md](docs/bagimliliklar.md).
 
 ## Gereksinimler
 
 - Node.js 24 veya üstü (npm 11 ile denendi)
-- Windows, macOS ya da Linux (x64 veya arm64). Yerel derleme gerekmez; better-sqlite3, sharp ve argon2 hazır ikili dosyalarla gelir.
+- Windows, macOS ya da Linux (x64 veya arm64). Yerel derleme gerekmez; sharp ve argon2 hazır ikili dosyalarla gelir.
+- Yerel geliştirme için veritabanı sunucusu gerekmez: `DATABASE_URL` boşsa PostgreSQL, PGlite ile uygulama sürecinin içinde çalışır ve `./data/pglite` klasöründe kalıcıdır.
 
 ## Kurulum
 
@@ -46,14 +47,16 @@ Windows PowerShell'de `cp` yerine `Copy-Item .env.example .env` kullanın.
 
 Tamamı [.env.example](.env.example) dosyasında açıklamalıdır.
 
-| Değişken                        | Varsayılan              | Açıklama                                                                                                        |
-| ------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `SITE_URL`                      | `http://localhost:3000` | Canonical, sitemap ve Open Graph adresleri                                                                      |
-| `DATABASE_PATH`                 | `./data/app.sqlite`     | SQLite dosyası                                                                                                  |
-| `UPLOAD_DIR`                    | `./storage/uploads`     | Yüklenen görseller (web kökü dışında)                                                                           |
-| `COOKIE_SECURE`                 | production'da `true`    | Oturum çerezinde Secure bayrağı                                                                                 |
-| `TRUST_PROXY`                   | `false`                 | Production'da ters vekil arkasında `true` olmalı; giriş ve form sınırları gerçek istemci IP'sine göre uygulanır |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | boş                     | Yalnızca `admin:create` için                                                                                    |
+| Değişken                                | Varsayılan                        | Açıklama                                                               |
+| --------------------------------------- | --------------------------------- | ---------------------------------------------------------------------- |
+| `SITE_URL`                              | `http://localhost:3000`           | Canonical, sitemap ve Open Graph adresleri                             |
+| `DATABASE_URL`, `DATABASE_URL_UNPOOLED` | boş                               | PostgreSQL bağlantısı (Vercel'de Neon tanımlar). Boşsa yerel PGlite    |
+| `LOCAL_DB_DIR`                          | `./data/pglite`                   | Yerel PGlite veri klasörü                                              |
+| `BLOB_READ_WRITE_TOKEN`                 | boş                               | Vercel Blob (private) anahtarı. Boşsa görseller `UPLOAD_DIR`'e yazılır |
+| `UPLOAD_DIR`                            | `./storage/uploads`               | Yerel görsel klasörü (web kökü dışında)                                |
+| `COOKIE_SECURE`                         | production'da `true`              | Oturum çerezinde Secure bayrağı                                        |
+| `TRUST_PROXY`                           | Vercel'de `true`, değilse `false` | Giriş ve form sınırlarının gerçek istemci IP'sine göre uygulanması     |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`         | boş                               | Yalnızca `admin:create` için                                           |
 
 ## Demo veri
 
@@ -80,22 +83,36 @@ Tamamı [.env.example](.env.example) dosyasında açıklamalıdır.
 npm run backup
 ```
 
-Yedek, uygulama çalışırken de alınabilir (SQLite çevrimiçi yedekleme). `backups/<zaman>/` içinde `app.sqlite`, `uploads/` ve sayıları içeren `yedek.json` bulunur. Yedekleri sunucu dışında bir yere kopyalayın. Geri yüklemek için uygulamayı durdurun:
+Yedek; tüm tabloları `veritabani.json` dosyasına, görselleri `gorseller/` klasörüne, sayıları `yedek.json` dosyasına yazar (`backups/<zaman>/`). Vercel'deki veritabanının ve Blob'un yedeği için önce ortamı çekin: `npx vercel env pull .env.local`, ardından `npm run backup`. Neon ayrıca kendi zaman noktasına geri dönme (point-in-time restore) özelliğini sunar. Geri yükleme hedef veritabanındaki kayıtları yedektekilerle değiştirir; önce mevcut durumun yedeğini alın:
 
 ```bash
 npm run restore -- backups/2026-11-06T08-30-07-692Z --evet
 ```
 
-Mevcut veritabanı ve görseller silinmez, `.geri-yukleme-oncesi-<zaman>` ekiyle kenara alınır.
+## Vercel'de yayın
 
-## Yayına alma notları
+1. Vercel'de **Add New > Project** ile GitHub'daki depoyu içe aktarın. Framework Next.js olarak algılanır; derleme komutu `package.json`'daki `vercel-build` betiğidir (önce migrasyonlar, sonra derleme).
+2. Projenin **Storage** sekmesinden bir **Neon (Postgres)** veritabanı ekleyip projeye bağlayın. `DATABASE_URL` ve `DATABASE_URL_UNPOOLED` kendiliğinden tanımlanır.
+3. Aynı sekmeden **Blob** deposu oluşturun, erişim türünü **Private** seçin ve projeye bağlayın (`BLOB_READ_WRITE_TOKEN`). Erişim türü sonradan değiştirilemez; taslak parfüm görsellerinin gizli kalması için private olmalıdır.
+4. Yeniden yayınlayın (Deployments > Redeploy). Migrasyonlar derleme sırasında uygulanır.
+5. İlk yöneticiyi kendi bilgisayarınızdan oluşturun:
 
-Canlıya alma bu işin kapsamında değildir; seçenekler ve geri alma planı [docs/plan.md](docs/plan.md) "Yayın planı" bölümündedir. Kısaca:
+```bash
+npx vercel env pull .env.local
+```
 
-- Kalıcı diskli bir sunucu (VPS ya da diskli PaaS) gerekir; veritabanı ve görseller dosya sistemindedir.
-- Önünde TLS sonlandıran bir ters vekil (Caddy, Nginx) olmalı, `TRUST_PROXY=true` yapılmalı ve vekil `X-Forwarded-For` başlığını eklemelidir. Vekilde brotli ya da gzip sıkıştırma açık olmalıdır.
-- Günlük bakım için `npm run cleanup` ve `npm run backup` komutlarını zamanlanmış görev olarak çalıştırın.
-- Her yayından önce yedek alın, ardından `npm run migrate:latest` çalıştırın.
+```bash
+npm run admin:create
+```
+
+`.env.local` üretim veritabanının anahtarlarını içerir ve `.gitignore` kapsamındadır; işiniz bitince silin. İsterseniz aynı şekilde `npm run demo:load` ile demo veriyi yükleyip `npm run demo:clear` ile kaldırabilirsiniz.
+
+Notlar:
+
+- Vercel'de istek gövdesi en fazla 4,5 MB olabilir. Panel, 4 MB'ı aşan görselleri yüklemeden önce tarayıcıda küçültür (en fazla 2400 px, WebP); 5 MB sınırı ve sunucudaki doğrulamalar aynen geçerlidir.
+- Görseller private Blob'dan `/gorsel` rotası üzerinden, erişim denetimiyle sunulur.
+- Günlük bakım (`npm run cleanup`) için Vercel Cron ya da yerelden `.env.local` ile çalıştırma kullanılabilir.
+- Kendi sunucunuzda çalıştırmak isterseniz `DATABASE_URL` ile herhangi bir PostgreSQL'e bağlanın; `BLOB_READ_WRITE_TOKEN` vermezseniz görseller kalıcı bir diske (`UPLOAD_DIR`) yazılır.
 
 ## Hukuki not
 
