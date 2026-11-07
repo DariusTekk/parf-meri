@@ -109,6 +109,8 @@ npm run admin:create
 
 Notlar:
 
+- Projenin **Settings > Build and Deployment** ayarlarında Framework Preset **Next.js**, Node.js sürümü **24.x** olmalıdır. Proje CLI ile (`vercel project add`) oluşturulduysa framework boş kalabilir; bu durumda site Vercel'in "404 NOT_FOUND" sayfasını gösterir.
+- `*.vercel.app` alan adı Türkiye'de erişime kapalı olabilir (USOM, Aralık 2023). Türkiye'deki ziyaretçiler için projeye kendi alan adınızı bağlayın (**Settings > Domains**). Kendi alan adı bağlandığında Deployment Protection "Standard Protection" ile açık bırakılabilir; önizlemeler korumalı, alan adı herkese açık olur.
 - Vercel'de istek gövdesi en fazla 4,5 MB olabilir. Panel, 4 MB'ı aşan görselleri yüklemeden önce tarayıcıda küçültür (en fazla 2400 px, WebP); 5 MB sınırı ve sunucudaki doğrulamalar aynen geçerlidir.
 - Görseller private Blob'dan `/gorsel` rotası üzerinden, erişim denetimiyle sunulur.
 - Günlük bakım (`npm run cleanup`) için Vercel Cron ya da yerelden `.env.local` ile çalıştırma kullanılabilir.
