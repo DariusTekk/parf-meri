@@ -5,6 +5,7 @@ import sharp, { type Metadata } from 'sharp';
 import { getDb } from './db';
 import { getEnv } from './env';
 import { HttpError } from './http';
+import { getImageStorage, type StoredFile } from './storage';
 import { IMAGE_LIMITS } from '@/lib/shared/domain';
 import { nowIso } from '@/lib/shared/format';
 
@@ -122,28 +123,29 @@ export async function validateAndDescribe(buf: Buffer, declaredMime: string) {
 /** Görseli 400/800/1600 px genişliklerde WebP ve AVIF olarak üretir; tüm meta veriler silinir. */
 export async function renderVariants(
   buf: Buffer,
-  dir: string,
   originalWidth: number,
-): Promise<number[]> {
-  await fs.mkdir(dir, { recursive: true });
+): Promise<{ widths: number[]; files: StoredFile[] }> {
   const targets = IMAGE_LIMITS.widths.filter((w) => w < originalWidth) as number[];
   const top = Math.min(originalWidth, IMAGE_LIMITS.widths[IMAGE_LIMITS.widths.length - 1] ?? 1600);
   if (!targets.includes(top)) targets.push(top);
   const widths = [...new Set(targets)].sort((a, b) => a - b);
+  const files: StoredFile[] = [];
   for (const w of widths) {
     const base = sharp(buf, { limitInputPixels: IMAGE_LIMITS.maxPixels })
       .rotate()
       .resize({ width: w, withoutEnlargement: true });
-    await base
-      .clone()
-      .webp({ quality: 78 })
-      .toFile(path.join(dir, `${w}.webp`));
-    await base
-      .clone()
-      .avif({ quality: 52, effort: 4 })
-      .toFile(path.join(dir, `${w}.avif`));
+    files.push({
+      name: `${w}.webp`,
+      data: await base.clone().webp({ quality: 78 }).toBuffer(),
+      contentType: 'image/webp',
+    });
+    files.push({
+      name: `${w}.avif`,
+      data: await base.clone().avif({ quality: 52, effort: 4 }).toBuffer(),
+      contentType: 'image/avif',
+    });
   }
-  return widths;
+  return { widths, files };
 }
 
 export async function addImage(
@@ -169,19 +171,17 @@ export async function addImage(
   const info = await validateAndDescribe(buf, declaredMime);
 
   const id = randomUUID();
-  const root = uploadRoot();
-  const tmpDir = path.join(root, 'tmp', id);
-  const finalDir = path.join(root, id);
+  const storage = getImageStorage();
   try {
-    const widths = await renderVariants(buf, tmpDir, info.width);
+    const { widths, files } = await renderVariants(buf, info.width);
     const largest = widths[widths.length - 1] ?? info.width;
     const height = Math.round((info.height * largest) / info.width);
+    // Önce dosyalar, sonra kayıt: kayıt başarısız olursa dosyalar aşağıda silinir.
+    await storage.write(id, files);
     await insertImageRow(perfumeId, id, altText, largest, height, widths);
-    await fs.rename(tmpDir, finalDir);
     return { id };
   } catch (error) {
-    await fs.rm(tmpDir, { recursive: true, force: true });
-    await fs.rm(finalDir, { recursive: true, force: true });
+    await storage.remove(id);
     await db.deleteFrom('perfume_images').where('id', '=', id).execute();
     if (error instanceof HttpError) throw error;
     if (error instanceof Error && error.message.includes('image_limit')) {
@@ -330,7 +330,13 @@ export async function deleteImage(perfumeId: number, imageId: string) {
         .execute();
     }
   });
-  await fs.rm(path.join(uploadRoot(), imageId), { recursive: true, force: true });
+  await getImageStorage().remove(imageId);
+}
+
+/** /gorsel rotası için: yalnızca UUID ve izinli dosya adı kalıbıyla depodan okur. */
+export async function readImageFile(id: string, file: string): Promise<Buffer | null> {
+  if (!IMAGE_ID_PATTERN.test(id) || !IMAGE_FILE_PATTERN.test(file)) return null;
+  return getImageStorage().read(id, file);
 }
 
 /**
@@ -338,39 +344,24 @@ export async function deleteImage(perfumeId: number, imageId: string) {
  * karşılığı olmayan görsel klasörleri, belirtilen süreden eskiyse silinir.
  */
 export async function cleanupOrphans(olderThanMs = 60 * 60 * 1000, now = Date.now()) {
-  const root = uploadRoot();
+  const storage = getImageStorage();
   let removedTmp = 0;
   let removedOrphans = 0;
-  const tmpRoot = path.join(root, 'tmp');
-  const isOld = async (p: string) => now - (await fs.stat(p)).mtimeMs > olderThanMs;
-
-  for (const entry of await safeReaddir(tmpRoot)) {
-    const full = path.join(tmpRoot, entry);
-    if (await isOld(full)) {
-      await fs.rm(full, { recursive: true, force: true });
-      removedTmp += 1;
-    }
-  }
   const known = new Set(
     (await getDb().selectFrom('perfume_images').select('id').execute()).map((r) => r.id),
   );
-  for (const entry of await safeReaddir(root)) {
-    if (entry === 'tmp' || !IMAGE_ID_PATTERN.test(entry) || known.has(entry)) continue;
-    const full = path.join(root, entry);
-    if (await isOld(full)) {
-      await fs.rm(full, { recursive: true, force: true });
+  for (const { id, modifiedAt } of await storage.listIds()) {
+    if (now - modifiedAt <= olderThanMs) continue;
+    if (id.startsWith('tmp/')) {
+      // Yalnızca yerel diskte: yarıda kalmış yazmanın geçici klasörü.
+      await fs.rm(path.join(uploadRoot(), id), { recursive: true, force: true });
+      removedTmp += 1;
+    } else if (IMAGE_ID_PATTERN.test(id) && !known.has(id)) {
+      await storage.remove(id);
       removedOrphans += 1;
     }
   }
   return { removedTmp, removedOrphans };
-}
-
-async function safeReaddir(dir: string): Promise<string[]> {
-  try {
-    return await fs.readdir(dir);
-  } catch {
-    return [];
-  }
 }
 
 export type ImageAccess = 'public' | 'admin-only' | 'missing';

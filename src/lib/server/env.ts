@@ -15,6 +15,18 @@ function siteUrlFromEnv(): string {
   return 'http://localhost:3000';
 }
 
+/** Betik çıktıları için: hangi veritabanına bağlanıldığı (parola yazılmaz). */
+export function describeDatabase(): string {
+  const env = getEnv();
+  if (!env.databaseUrl) return `yerel PGlite (${env.localDbDir})`;
+  try {
+    const u = new URL(env.databaseUrl);
+    return `PostgreSQL ${u.hostname}${u.pathname}`;
+  } catch {
+    return 'PostgreSQL (DATABASE_URL)';
+  }
+}
+
 export function getEnv() {
   const cookieSecureRaw = process.env.COOKIE_SECURE?.trim();
   const trustProxyRaw = process.env.TRUST_PROXY?.trim();

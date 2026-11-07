@@ -23,6 +23,37 @@ type Upload = { name: string; progress: number; error?: string; done?: boolean }
 
 const ACCEPT = ['image/jpeg', 'image/png', 'image/webp'];
 
+/**
+ * Barındırma platformunun istek gövdesi sınırı (Vercel'de 4,5 MB) nedeniyle 4 MB'ı aşan
+ * görseller yüklenmeden önce tarayıcıda en fazla 2400 px genişliğe küçültülüp WebP'ye çevrilir.
+ * 5 MB sınırı ve sunucudaki tür, imza ve boyut doğrulaması aynen geçerlidir.
+ */
+const SHRINK_ABOVE = 4 * 1024 * 1024;
+
+async function shrinkIfNeeded(file: File): Promise<File> {
+  if (file.size <= SHRINK_ABOVE) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 2400 / bitmap.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    for (const quality of [0.9, 0.8, 0.7]) {
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/webp', quality));
+      if (blob && blob.size <= SHRINK_ABOVE) {
+        return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.webp', {
+          type: 'image/webp',
+        });
+      }
+    }
+  } catch {
+    // Tarayıcı görseli açamazsa dosya olduğu gibi gönderilir; sunucu gerekli hatayı döndürür.
+  }
+  return file;
+}
+
 function uploadOne(url: string, file: File, onProgress: (p: number) => void) {
   return new Promise<{ ok: boolean; status: number; body: unknown }>((resolve) => {
     const xhr = new XMLHttpRequest();
@@ -85,7 +116,7 @@ export function ImageManager({
     let added = 0;
     for (const [i, file] of files.entries()) {
       if (queue[i]!.error) continue;
-      const res = await uploadOne(base, file, (p) =>
+      const res = await uploadOne(base, await shrinkIfNeeded(file), (p) =>
         setUploads((u) => u.map((x, j) => (j === i ? { ...x, progress: p } : x))),
       );
       if (res.ok) {

@@ -11,6 +11,8 @@ export default defineConfig({
     setupFiles: ['tests/setup.ts'],
     pool: 'forks',
     testTimeout: 60_000,
+    // Süreç içi PostgreSQL'in (PGlite) açılışı ve migrasyonlar kurulum adımında birkaç saniye sürer.
+    hookTimeout: 60_000,
     coverage: {
       provider: 'v8',
       include: ['src/lib/**/*.ts'],

@@ -9,6 +9,8 @@ import { getEnv } from '../src/lib/server/env';
 /** Yerel geliştirme için rastgele parolalı deneme yöneticisi; bilgiler data/ altında (git dışı). */
 async function main() {
   if (getEnv().isProduction) throw new Error('Bu betik production ortamında çalıştırılamaz.');
+  if (getEnv().databaseUrl)
+    throw new Error('Deneme yöneticisi yalnızca yerel veritabanında oluşturulur.');
   await migrateToLatest();
   const email = 'deneme@yerel.test';
   const password = randomBytes(18).toString('base64url');
@@ -19,7 +21,7 @@ async function main() {
     .executeTakeFirst();
   if (exists) await setAdminPassword(email, password);
   else await createAdmin(email, password);
-  const file = path.join(path.dirname(getEnv().databasePath), 'deneme-yonetici.json');
+  const file = path.join(path.dirname(getEnv().localDbDir), 'deneme-yonetici.json');
   fs.writeFileSync(file, JSON.stringify({ email, password }));
   console.log(`Deneme yöneticisi hazır; bilgiler: ${file}`);
 }

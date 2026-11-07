@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "tsx scripts/migrate.ts latest && next build",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",

@@ -31,8 +31,9 @@ calisma-notlari-parca-*.md
 ekran-goruntuleri/
 lighthouse-raporlari/
 
-# Yerel editör yapılandırması
+# Yerel editör ve barındırma aracı yapılandırması
 .vscode/
+.vercel/
 
 # Sistem
 .DS_Store

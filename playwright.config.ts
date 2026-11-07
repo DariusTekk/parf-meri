@@ -29,7 +29,10 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120_000,
     env: {
-      DATABASE_PATH: '.e2e/app.sqlite',
+      DATABASE_URL: '',
+      DATABASE_URL_UNPOOLED: '',
+      BLOB_READ_WRITE_TOKEN: '',
+      LOCAL_DB_DIR: '.e2e/db',
       UPLOAD_DIR: '.e2e/uploads',
       SITE_URL: `http://localhost:${PORT}`,
     },

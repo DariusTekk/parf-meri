@@ -51,7 +51,11 @@ function blobStorage(token: string): ImageStorage {
       let cursor: string | undefined;
       do {
         const page = await list({ ...opts, prefix: `${BLOB_PREFIX}${id}/`, cursor });
-        if (page.blobs.length > 0) await del(page.blobs.map((b) => b.url), opts);
+        if (page.blobs.length > 0)
+          await del(
+            page.blobs.map((b) => b.url),
+            opts,
+          );
         cursor = page.hasMore ? page.cursor : undefined;
       } while (cursor);
     },
@@ -77,8 +81,8 @@ function diskStorage(root: string): ImageStorage {
     kind: 'disk',
     async write(id, files) {
       // Önce geçici klasöre yazılır, tamamı bitince tek adımda yerine taşınır.
-      const tmpDir = path.join(root, 'tmp', id);
-      const finalDir = path.join(root, id);
+      const tmpDir = path.join(/*turbopackIgnore: true*/ root, 'tmp', id);
+      const finalDir = path.join(/*turbopackIgnore: true*/ root, id);
       try {
         await fs.mkdir(tmpDir, { recursive: true });
         for (const f of files) await fs.writeFile(path.join(tmpDir, f.name), f.data);
@@ -91,26 +95,26 @@ function diskStorage(root: string): ImageStorage {
     },
     async read(id, name) {
       try {
-        return await fs.readFile(path.join(root, id, name));
+        return await fs.readFile(path.join(/*turbopackIgnore: true*/ root, id, name));
       } catch {
         return null;
       }
     },
     async remove(id) {
-      await fs.rm(path.join(root, id), { recursive: true, force: true });
+      await fs.rm(path.join(/*turbopackIgnore: true*/ root, id), { recursive: true, force: true });
     },
     async listIds() {
       const out: Array<{ id: string; modifiedAt: number }> = [];
-      for (const base of [root, path.join(root, 'tmp')]) {
+      for (const base of [root, path.join(/*turbopackIgnore: true*/ root, 'tmp')]) {
         let entries: string[] = [];
         try {
-          entries = await fs.readdir(base);
+          entries = await fs.readdir(/*turbopackIgnore: true*/ base);
         } catch {
           entries = [];
         }
         for (const entry of entries) {
           if (entry === 'tmp') continue;
-          const stat = await fs.stat(path.join(base, entry));
+          const stat = await fs.stat(path.join(/*turbopackIgnore: true*/ base, entry));
           out.push({ id: base === root ? entry : `tmp/${entry}`, modifiedAt: stat.mtimeMs });
         }
       }
