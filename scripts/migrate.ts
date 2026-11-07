@@ -1,3 +1,4 @@
+import './env-yukle';
 import { closeDb } from '../src/lib/server/db';
 import {
   migrateAllDown,

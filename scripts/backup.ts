@@ -1,3 +1,4 @@
+import './env-yukle';
 import path from 'node:path';
 import { createBackup } from '../src/lib/server/backup';
 import { closeDb } from '../src/lib/server/db';

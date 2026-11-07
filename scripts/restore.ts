@@ -1,3 +1,4 @@
+import './env-yukle';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { restoreBackup } from '../src/lib/server/backup';

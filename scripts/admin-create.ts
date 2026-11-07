@@ -1,8 +1,10 @@
+import './env-yukle';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 import { createAdmin, setAdminPassword } from '../src/lib/server/auth';
 import { closeDb, getDb } from '../src/lib/server/db';
 import { migrateToLatest } from '../src/lib/server/db/migrate';
+import { describeDatabase } from '../src/lib/server/env';
 import { loginSchema, passwordSchema } from '../src/lib/shared/schemas';
 
 async function ask(question: string, hidden = false): Promise<string> {
@@ -21,6 +23,8 @@ async function ask(question: string, hidden = false): Promise<string> {
 }
 
 async function main() {
+  // Hesabın hangi veritabanına yazılacağı baştan gösterilir (yerel PGlite mi, canlı PostgreSQL mi).
+  console.log(`Hedef veritabanı: ${describeDatabase()}`);
   await migrateToLatest();
   let email = process.env.ADMIN_EMAIL?.trim() ?? '';
   let password = process.env.ADMIN_PASSWORD ?? '';

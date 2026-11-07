@@ -1,3 +1,4 @@
+import './env-yukle';
 import { closeDb } from '../src/lib/server/db';
 import { migrateToLatest } from '../src/lib/server/db/migrate';
 import { clearDemo, loadDemo } from '../src/lib/server/demo';

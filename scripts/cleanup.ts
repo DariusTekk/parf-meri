@@ -1,3 +1,4 @@
+import './env-yukle';
 import { deleteExpiredSessions } from '../src/lib/server/auth';
 import { purgeOldMessages } from '../src/lib/server/contact';
 import { closeDb } from '../src/lib/server/db';
